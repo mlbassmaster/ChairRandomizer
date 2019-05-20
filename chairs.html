@@ -70,15 +70,16 @@ Your browser does not support the canvas element needed for this script.
 		var roll = Math.random();
 		var populationIndex = 0;
 		var summedProbability = 0;
-		var colorIndex = chairNumbers.findIndex(function(population) {
-			var populationProbability = population/chairNumbers.reduce(sum);
+		var colorIndex = 0;
+		for (var i=0; i < chairNumbers.length; ++i){
+			var populationProbability = chairNumbers[i]/chairNumbers.reduce(sum);
 			if(roll <= populationProbability + summedProbability) {
-				return true;
+				colorIndex = i;
+				break;
 			} else {
 				summedProbability += populationProbability;
-				return false;
 			}
-		});
+		}
 		chairNumbers[colorIndex]--;
 		return chairColors[colorIndex];
 	}
