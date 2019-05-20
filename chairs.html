@@ -1,0 +1,195 @@
+<!DOCTYPE HTML>
+<meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+<meta content="utf-8" http-equiv="encoding">
+
+<!--
+	Instructions for using and editing this file:
+	- All the logic is written in javascript within the large HTML script tag.
+	- To edit the colors, simply change the values inside the chairColors variable with the appropriate hexidecimal-encoded color strings.
+	- To change the size of the image, edit the myCanvas HTML tag's properties, and edit the chairDim and chairSpaced variables.
+ -->
+
+<html>
+
+<canvas id="myCanvas" width="680" height="210"
+style="border:1px solid #c3c3c3;">
+Your browser does not support the canvas element needed for this script.
+</canvas>
+<p id="messageTitle"></p>
+<p id="message"></p>
+<button type="button" onclick="location.reload()">Generate Pattern</button>
+<a id="exporter" onclick="exportToPng()"><button>Save to File</button></a>
+
+<script>
+	//TODO add logic for artificial randomness, such as limiting contiguous sections of a color
+
+	//the canvas and context
+	var canvas = document.getElementById("myCanvas");
+	var ctx = canvas.getContext("2d");
+	
+	var chairDim = 10; //dimensions of each chair
+	var chairSpaced = chairDim + 2; //dimensions of chair plus spacing
+	
+	//arrays representing color and amount of chairs
+	var chairColors = ["#4169E1","#696969","#000000"]; //hex-encoded colors: blue, dim gray, black
+	var chairNumbers = [200,150,150];
+	
+	//hard-coded arrays for the arrangement of the chairs is a section
+	//each number represents the quantity of chairs in a single row, starting close to the stage and moving back
+	var frontLeftSection = [10,12,12,11,10,9,9,8,7,6];
+	var frontLeftCenterSection = [7,8,9,9,10,11,12,12,13];
+	var centerSection = [2,2,2];
+	var frontRightCenterSection = [7,8,9,9,10,11,12,12,13];
+	var frontRightSection = [10,12,11,11,10,9,9,8,7,6,3];
+	var backLeftSection = [15,15,15];
+	var backCenterSection = [12];
+	var backRightSection = [15,15,15];
+	
+	//variable to hold the index for drawing
+	var startPoint = [0,0]; //values are the x,y coordinates for top-left corner of rect
+	
+	//utility function for adding
+	function sum(accumulator, x){
+		return accumulator + x;
+	}
+	
+	//function to get a randomly colored chair
+	function getRandomChair() {
+		var color = chairColors[Math.floor(Math.random()*chairColors.length)];
+		while (chairNumbers[chairColors.indexOf(color)] <= 0) {
+			color = chairColors[Math.floor(Math.random()*chairColors.length)];
+		}
+		chairNumbers[chairColors.indexOf(color)]--;
+		return color;
+	}
+	
+	//function to get a randomly colored chair taking the population of each color into account
+	function getWeightedRandomChair() {
+		var roll = Math.random();
+		var populationIndex = 0;
+		var summedProbability = 0;
+		var colorIndex = chairNumbers.findIndex(function(population) {
+			var populationProbability = population/chairNumbers.reduce(sum);
+			if(roll <= populationProbability + summedProbability) {
+				return true;
+			} else {
+				summedProbability += populationProbability;
+				return false;
+			}
+		});
+		chairNumbers[colorIndex]--;
+		return chairColors[colorIndex];
+	}
+	
+	//function to populate a row, starting from the left
+	function fillRowFromLeft(row) {
+		for (i=0; i<row; i++){
+			//randomly pick a color
+			ctx.fillStyle = getWeightedRandomChair();
+			//draw the chair
+			ctx.fillRect(startPoint[0],startPoint[1],chairDim,chairDim);
+			//increase startPoint x by chair plus the spacing
+			startPoint[0] += chairSpaced;
+		}
+	}
+	
+	//function to populate a row, starting from the right
+	function fillRowFromRight(row) {
+		for (i=0; i<row; i++){
+			startPoint[0] -= chairSpaced;
+			ctx.fillStyle = getWeightedRandomChair();
+			ctx.fillRect(startPoint[0],startPoint[1],chairDim,chairDim);
+		}
+	}
+	
+	//function to populate an entire section, fillFromRight if provided TRUE for second parameter
+	function fillSection(section, fillFromRight) {
+		var currentXCoordinate = startPoint[0];
+		section.forEach(function(row) {
+			if(fillFromRight){
+				startPoint[0] = currentXCoordinate + sectionWidth(section);
+				fillRowFromRight(row);
+				startPoint[1] += chairSpaced;
+			} else {
+				fillRowFromLeft(row);
+				startPoint[0] -= row * chairSpaced;
+				startPoint[1] += chairSpaced;
+			}
+		});
+		startPoint[1] -= sectionHeight(section);
+	}
+	
+	//Get the width of an entire section
+	function sectionWidth(section) {
+		return Math.max.apply(null, section) * chairSpaced;
+	}
+	
+	//Get the height of an entire section
+	function sectionHeight(section) {
+		return section.length * chairSpaced;
+	}
+	
+	//Below here we actually start picking the chairs
+	startPoint = [0,0];
+	var previousStartPoint = startPoint;
+	fillSection(frontLeftSection,true);
+	
+	startPoint = [sectionWidth(frontLeftSection) + (chairSpaced*2) ,0];
+	previousStartPoint = startPoint;
+	fillSection(frontLeftCenterSection,true);
+	
+	
+	startPoint = [previousStartPoint[0] + sectionWidth(frontLeftCenterSection),0];
+	previousStartPoint = startPoint;
+	fillSection(centerSection);
+	
+	startPoint = [previousStartPoint[0] + sectionWidth(centerSection), 0];
+	previousStartPoint = startPoint;
+	fillSection(frontRightCenterSection);
+	
+	startPoint = [previousStartPoint[0] + sectionWidth(frontRightCenterSection) + (chairSpaced*2), 0];
+	fillSection(frontRightSection);
+	
+	//Now the back sections, so we're resetting startPoint without caring what the previous one was.
+	startPoint = [(5*chairSpaced), sectionHeight(frontLeftSection) + (chairSpaced*2)];
+	previousStartPoint = startPoint;
+	fillSection(backLeftSection, true);
+
+	startPoint = [previousStartPoint[0] + sectionWidth(backLeftSection) + (chairSpaced*2), previousStartPoint[1]];
+	previousStartPoint = startPoint;
+	fillSection(backCenterSection);
+	
+	startPoint = [previousStartPoint[0] + sectionWidth(backCenterSection) + (chairSpaced*2),previousStartPoint[1]];
+	fillSection(backRightSection);
+	
+	//Check for leftover chairs. Notify the user if there are any, and show what color.
+	var message = document.getElementById("message");
+	if (chairNumbers.some(function(element){
+		return element > 0;
+	})) {
+		var messageTitle = "Leftover chairs:";
+		var index = 0;
+		chairNumbers.forEach(function (amount) {
+			var node = document.createElement("span");
+			node.innerHTML = amount;
+			message.appendChild(node);
+			node = document.createElement("span");
+			node.innerHTML = "&#9632";
+			node.setAttribute("style", "color:" + chairColors[index]);
+			message.appendChild(node);
+			index++;
+		});
+		document.getElementById("messageTitle").innerHTML = messageTitle;
+	};
+	
+	//Function to export the canvas to a file
+	function exportToPng() {
+		var link = document.getElementById('exporter');
+		link.href = canvas.toDataURL();
+		link.download = "chairs.png";
+	}
+	
+	
+</script>
+
+</html>
